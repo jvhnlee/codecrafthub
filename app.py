@@ -8,12 +8,14 @@
 #   status (Not Started | In Progress | Completed), created_at (timestamp)
 # - Basic error handling for missing fields, not-found, invalid values, and file I/O errors
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
 import json
 import os
 import datetime
 
 app = Flask(__name__)
+CORS(app)
 
 # 1) Data storage configuration
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -77,7 +79,35 @@ def is_valid_status(value):
     """Validate allowed status values."""
     return value in ("Not Started", "In Progress", "Completed")
 
-# 3) API endpoints
+# Statistics for the courses
+@app.route("/api/courses/stats", methods=["GET"])
+def get_course_stats():
+    """Returns a summary of course counts by status."""
+    try:
+        courses = load_courses()
+        
+        # Initialize counts
+        stats = {
+            "total_courses": len(courses),
+            "by_status": {
+                "Not Started": 0,
+                "In Progress": 0,
+                "Completed": 0
+            }
+        }
+
+        # Aggregate data
+        for course in courses:
+            status = course.get("status")
+            if status in stats["by_status"]:
+                stats["by_status"][status] += 1
+        
+        return jsonify(stats), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to calculate stats: {str(e)}"}), 500
+
+# API endpoints
 
 # POST /api/courses - Add a new course
 # GET  /api/courses - Get all courses
@@ -172,34 +202,10 @@ def course_detail(course_id):
         deleted = courses.pop(idx)
         save_courses(courses)
         return jsonify(deleted)
-
-# Statistics for the courses
-@app.route("/api/courses/stats", methods=["GET"])
-def get_course_stats():
-    """Returns a summary of course counts by status."""
-    try:
-        courses = load_courses()
-        
-        # Initialize counts
-        stats = {
-            "total_courses": len(courses),
-            "by_status": {
-                "Not Started": 0,
-                "In Progress": 0,
-                "Completed": 0
-            }
-        }
-
-        # Aggregate data
-        for course in courses:
-            status = course.get("status")
-            if status in stats["by_status"]:
-                stats["by_status"][status] += 1
-        
-        return jsonify(stats), 200
-        
-    except Exception as e:
-        return jsonify({"error": f"Failed to calculate stats: {str(e)}"}), 500
+    
+@app.route("/")
+def index():
+    return render_template("index.html")
 
 # Run the app
 if __name__ == "__main__":
